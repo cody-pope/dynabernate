@@ -1,0 +1,19 @@
+{
+  "name": "dynabernate",
+  "version": "1.0.0",
+  "description": "A DynamoDB data mapper that uses Hibernate-like decorators (annotations)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cody-pope/dynabernate.git"
+  },
+  "author": "Cody Pope",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/cody-pope/dynabernate/issues"
+  },
+  "homepage": "https://github.com/cody-pope/dynabernate#readme"
+}
