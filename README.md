@@ -1,5 +1,7 @@
 # Number Formatter
 
+[![Build Status](https://travis-ci.org/cody-pope/dynabernate.svg?branch=master)](https://travis-ci.org/cody-pope/dynabernate)
+
 A small library that adds commas to numbers
 
 ## Installation
