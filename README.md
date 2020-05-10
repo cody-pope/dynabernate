@@ -1,6 +1,6 @@
 # Number Formatter
 
-[![Build Status](https://travis-ci.org/cody-pope/dynabernate.svg?branch=master)](https://travis-ci.org/cody-pope/dynabernate)
+[![Build Status](https://travis-ci.org/cody-pope/dynabernate.svg?branch=master)](https://travis-ci.org/cody-pope/dynabernate) [![Coverage Status](https://coveralls.io/repos/github/cody-pope/dynabernate/badge.svg?branch=master)](https://coveralls.io/github/cody-pope/dynabernate?branch=master)
 
 A small library that adds commas to numbers
 
