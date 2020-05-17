@@ -4,5 +4,6 @@
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
     "sourceMap": true
+    // "types": ["reflect-metadata"]
   }
 }
