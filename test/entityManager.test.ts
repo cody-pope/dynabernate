@@ -139,7 +139,7 @@ describe('EntityManager', () => {
   let entityManager: EntityManager;
 
   before(() => {
-    return DynamoDbLocal.launch(port).then(() => {
+    return DynamoDbLocal.launch(port, null, ['-sharedDb']).then(() => {
       return createTable(tableDefinition);
     });
   });
