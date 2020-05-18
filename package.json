@@ -4,7 +4,7 @@
   "description": "A DynamoDB data mapper that uses Hibernate-like decorators (annotations)",
   "main": "index.ts",
   "scripts": {
-    "test": "export AWS_REGION=us-east-1;cross-env TS_NODE_FILES=true mocha --timeout 0 --exit --require ts-node/register --colors test/**/*.ts",
+    "test": "cross-env TS_NODE_FILES=true mocha --timeout 0 --exit --require ts-node/register --colors test/**/*.ts",
     "coverage": "nyc npm run test"
   },
   "repository": {
