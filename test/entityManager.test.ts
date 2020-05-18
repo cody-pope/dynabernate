@@ -276,9 +276,9 @@ describe('EntityManager', () => {
     const entity = await entityManager.save(
       new TestEntityWithTableAndHashKeyAndVersion()
     );
-    expect(entity['version']).to.be.equal(1);
+    expect(entity.version).to.be.equal(1);
     const persistedEntity = await entityManager.save(entity);
-    expect(persistedEntity['version']).to.be.equal(2);
+    expect(persistedEntity.version).to.be.equal(2);
     const scanObject = await scanTable(tableName);
     expect(scanObject['Count']).to.be.equal(1);
     expect(scanObject['ScannedCount']).to.be.equal(1);
@@ -287,11 +287,11 @@ describe('EntityManager', () => {
   });
 
   it('should not save an existing entity without having read previous version first', async () => {
-    let entity = await entityManager.save(
+    const entity = await entityManager.save(
       new TestEntityWithTableAndHashKeyAndVersion()
     );
-    expect(entity['version']).to.be.equal(1);
-    entity['version'] = null;
+    expect(entity.version).to.be.equal(1);
+    entity.version = null;
     await rejects(entityManager.save(entity), {
       name: 'ConditionalCheckFailedException',
       message: 'The conditional request failed',
@@ -304,11 +304,11 @@ describe('EntityManager', () => {
   });
 
   it('should not save an existing entity when trying to use wrong version', async () => {
-    let entity = await entityManager.save(
+    const entity = await entityManager.save(
       new TestEntityWithTableAndHashKeyAndVersion()
     );
-    expect(entity['version']).to.be.equal(1);
-    entity['version'] = 2;
+    expect(entity.version).to.be.equal(1);
+    entity.version = 2;
     await rejects(entityManager.save(entity), {
       name: 'ConditionalCheckFailedException',
       message: 'The conditional request failed',
@@ -318,5 +318,26 @@ describe('EntityManager', () => {
     expect(scanObject['ScannedCount']).to.be.equal(1);
     expect(scanObject['Items'].length).to.be.equal(1);
     expect(scanObject['Items'][0]['version']['N']).to.be.equal('1');
+  });
+
+  it('should get an existing entity', async () => {
+    const persistedEntity = await entityManager.save(
+      new TestEntityWithTableAndHashKeyAndVersion()
+    );
+    const example = new TestEntityWithTableAndHashKeyAndVersion();
+    example.id = persistedEntity.id;
+    const entity = await entityManager.get(example);
+    expect(entity).to.deep.equal(persistedEntity);
+    const scanObject = await scanTable(tableName);
+    expect(scanObject['Count']).to.be.equal(1);
+  });
+
+  it('should not get an entity that does not exist', async () => {
+    const example = new TestEntityWithTableAndHashKeyAndVersion();
+    example.id = '1234';
+    const entity = await entityManager.get(example);
+    expect(entity).to.be.undefined;
+    const scanObject = await scanTable(tableName);
+    expect(scanObject['Count']).to.be.equal(0);
   });
 });

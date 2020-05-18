@@ -6,7 +6,7 @@ const documentClient = new AWS.DynamoDB.DocumentClient({
   endpoint: 'http://localhost:8000',
 });
 
-function getTable(target: object): string {
+function getTable(target: any): string {
   let tables: string[] = Reflect.getMetadata(Symbols.table, target);
   if (!tables) {
     throw new Error(
@@ -24,7 +24,7 @@ function getTable(target: object): string {
   return tables[0];
 }
 
-function getHashKeyProperty(target: object): string {
+function getHashKeyProperty(target: any): string {
   let hashKeys: string[] = Reflect.getMetadata(Symbols.hashKey, target);
   if (!hashKeys) {
     throw new Error(
@@ -42,7 +42,7 @@ function getHashKeyProperty(target: object): string {
   return hashKeys[0];
 }
 
-function getVersionProperty(target: object): string {
+function getVersionProperty(target: any): string {
   let versions: string[] = Reflect.getMetadata(Symbols.version, target);
   if (versions) {
     if (versions.length > 1) {
@@ -58,7 +58,23 @@ function getVersionProperty(target: object): string {
 }
 
 export default class EntityManager {
-  save(object: object): Promise<object> {
+  get<T>(example: T): Promise<T> {
+    return new Promise((resolve, reject) => {
+      let table: string = getTable(example);
+      let hashKeyProperty: string = getHashKeyProperty(example);
+      let params = {
+        TableName: table,
+        Key: {},
+      };
+      params.Key[hashKeyProperty] = example[hashKeyProperty];
+      documentClient.get(params, (err, data) => {
+        if (err) reject(err);
+        else resolve(data.Item);
+      });
+    });
+  }
+
+  save<T>(object: T): Promise<T> {
     return new Promise((resolve, reject) => {
       let table: string = getTable(object);
       let hashKeyProperty: string = getHashKeyProperty(object);
