@@ -53,6 +53,11 @@ function getVersionProperty(target: any): string {
   return null;
 }
 
+function getAttributeProperties(target: any): string[] {
+  let attributes: string[] = Reflect.getMetadata(Symbols.attribute, target);
+  return attributes;
+}
+
 export default class EntityManager {
   documentClient: AWS.DynamoDB.DocumentClient;
 
@@ -65,6 +70,7 @@ export default class EntityManager {
       const table = getTable(example);
       const hashKeyProperty = getHashKeyProperty(example);
       const versionProperty = getVersionProperty(example);
+      const attributeProperties = getAttributeProperties(example);
       const params = {
         TableName: table,
         Key: {},
@@ -78,6 +84,11 @@ export default class EntityManager {
           if (versionProperty) {
             example[versionProperty] = data.Item[versionProperty];
           }
+          if (attributeProperties) {
+            for (let attributeProperty of attributeProperties) {
+              example[attributeProperty] = data.Item[attributeProperty];
+            }
+          }
           resolve(example);
         }
       });
@@ -89,6 +100,7 @@ export default class EntityManager {
       const table = getTable(object);
       const hashKeyProperty = getHashKeyProperty(object);
       const versionProperty = getVersionProperty(object);
+      const attributeProperties = getAttributeProperties(object);
       const params = {
         TableName: table,
         Item: {},
@@ -112,6 +124,11 @@ export default class EntityManager {
           };
         }
         params.Item[versionProperty] = (object[versionProperty] || 0) + 1;
+      }
+      if (attributeProperties) {
+        for (let attributeProperty of attributeProperties) {
+          params.Item[attributeProperty] = object[attributeProperty];
+        }
       }
       this.documentClient.put(params, (err) => {
         if (err) reject(err);

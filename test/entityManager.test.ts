@@ -139,6 +139,60 @@ class TestEntityWithTableAndHashKeyAndVersion {
   version: number;
 }
 
+@table(tableName)
+class TestEntityWithStringAttribute {
+  @hashKey()
+  id: string;
+
+  @attribute()
+  property: string;
+}
+
+@table(tableName)
+class TestEntityWithNumberAttribute {
+  @hashKey()
+  id: string;
+
+  @attribute()
+  property: number;
+}
+
+@table(tableName)
+class TestEntityWithBooleanAttribute {
+  @hashKey()
+  id: string;
+
+  @attribute()
+  property: boolean;
+}
+
+@table(tableName)
+class TestEntityWithStringArrayAttribute {
+  @hashKey()
+  id: string;
+
+  @attribute()
+  property: string[];
+}
+
+@table(tableName)
+class TestEntityWithObjectAttribute {
+  @hashKey()
+  id: string;
+
+  @attribute()
+  property: object;
+}
+
+@table(tableName)
+class TestEntityWithTypedObjectAttribute {
+  @hashKey()
+  id: string;
+
+  @attribute()
+  property: TestEntityWithStringAttribute;
+}
+
 describe('EntityManager', () => {
   let entityManager: EntityManager;
 
@@ -278,6 +332,221 @@ describe('EntityManager', () => {
     });
   });
 
+  it('should save an entity with a string attribute', async () => {
+    const entity = new TestEntityWithStringAttribute();
+    entity.id = '1234';
+    entity.property = 'TEST_VALUE';
+    const persistedEntity = await entityManager.save(entity);
+    expect(persistedEntity).to.be.equal(entity);
+    const scanObject = await scanTable(tableName);
+    expect(scanObject).to.deep.equal({
+      Count: 1,
+      ScannedCount: 1,
+      Items: [
+        {
+          id: {
+            S: '1234',
+          },
+          property: {
+            S: 'TEST_VALUE',
+          },
+        },
+      ],
+    });
+  });
+
+  it('should save an entity with a number attribute', async () => {
+    const entity = new TestEntityWithNumberAttribute();
+    entity.id = '1234';
+    entity.property = 8378;
+    const persistedEntity = await entityManager.save(entity);
+    expect(persistedEntity).to.be.equal(entity);
+    const scanObject = await scanTable(tableName);
+    expect(scanObject).to.deep.equal({
+      Count: 1,
+      ScannedCount: 1,
+      Items: [
+        {
+          id: {
+            S: '1234',
+          },
+          property: {
+            N: '8378',
+          },
+        },
+      ],
+    });
+  });
+
+  it('should save an entity with a boolean attribute', async () => {
+    const entity = new TestEntityWithBooleanAttribute();
+    entity.id = '1234';
+    entity.property = true;
+    const persistedEntity = await entityManager.save(entity);
+    expect(persistedEntity).to.be.equal(entity);
+    const scanObject = await scanTable(tableName);
+    expect(scanObject).to.deep.equal({
+      Count: 1,
+      ScannedCount: 1,
+      Items: [
+        {
+          id: {
+            S: '1234',
+          },
+          property: {
+            BOOL: true,
+          },
+        },
+      ],
+    });
+  });
+
+  it('should save an entity with a null attribute', async () => {
+    const entity = new TestEntityWithStringAttribute();
+    entity.id = '1234';
+    entity.property = null;
+    const persistedEntity = await entityManager.save(entity);
+    expect(persistedEntity).to.be.equal(entity);
+    const scanObject = await scanTable(tableName);
+    expect(scanObject).to.deep.equal({
+      Count: 1,
+      ScannedCount: 1,
+      Items: [
+        {
+          id: {
+            S: '1234',
+          },
+          property: {
+            NULL: true,
+          },
+        },
+      ],
+    });
+  });
+
+  it('should save an entity with a string array attribute', async () => {
+    const entity = new TestEntityWithStringArrayAttribute();
+    entity.id = '1234';
+    entity.property = ['TEST_VALUE'];
+    const persistedEntity = await entityManager.save(entity);
+    expect(persistedEntity).to.be.equal(entity);
+    const scanObject = await scanTable(tableName);
+    expect(scanObject).to.deep.equal({
+      Count: 1,
+      ScannedCount: 1,
+      Items: [
+        {
+          id: {
+            S: '1234',
+          },
+          property: {
+            L: [
+              {
+                S: 'TEST_VALUE',
+              },
+            ],
+          },
+        },
+      ],
+    });
+  });
+
+  it('should save an entity with an object attribute', async () => {
+    const entity = new TestEntityWithObjectAttribute();
+    entity.id = '1234';
+    entity.property = {
+      TEST_KEY: 'TEST_VALUE',
+    };
+    const persistedEntity = await entityManager.save(entity);
+    expect(persistedEntity).to.be.equal(entity);
+    const scanObject = await scanTable(tableName);
+    expect(scanObject).to.deep.equal({
+      Count: 1,
+      ScannedCount: 1,
+      Items: [
+        {
+          id: {
+            S: '1234',
+          },
+          property: {
+            M: {
+              TEST_KEY: {
+                S: 'TEST_VALUE',
+              },
+            },
+          },
+        },
+      ],
+    });
+  });
+
+  it('should save an entity with an object attribute with nested objects', async () => {
+    const entity = new TestEntityWithObjectAttribute();
+    entity.id = '1234';
+    entity.property = {
+      TEST_KEY: {
+        TEST_KEY_2: 'TEST_VALUE',
+      },
+    };
+    const persistedEntity = await entityManager.save(entity);
+    expect(persistedEntity).to.be.equal(entity);
+    const scanObject = await scanTable(tableName);
+    expect(scanObject).to.deep.equal({
+      Count: 1,
+      ScannedCount: 1,
+      Items: [
+        {
+          id: {
+            S: '1234',
+          },
+          property: {
+            M: {
+              TEST_KEY: {
+                M: {
+                  TEST_KEY_2: {
+                    S: 'TEST_VALUE',
+                  },
+                },
+              },
+            },
+          },
+        },
+      ],
+    });
+  });
+
+  it('should save an entity with a typed object attribute', async () => {
+    const entity = new TestEntityWithTypedObjectAttribute();
+    entity.id = '1234';
+    entity.property = new TestEntityWithStringAttribute();
+    entity.property.id = '5678';
+    entity.property.property = 'TEST_VALUE';
+    const persistedEntity = await entityManager.save(entity);
+    expect(persistedEntity).to.be.equal(entity);
+    const scanObject = await scanTable(tableName);
+    expect(scanObject).to.deep.equal({
+      Count: 1,
+      ScannedCount: 1,
+      Items: [
+        {
+          id: {
+            S: '1234',
+          },
+          property: {
+            M: {
+              id: {
+                S: '5678',
+              },
+              property: {
+                S: 'TEST_VALUE',
+              },
+            },
+          },
+        },
+      ],
+    });
+  });
+
   it('should save an existing entity with incremented version', async () => {
     const entity = await entityManager.save(
       new TestEntityWithTableAndHashKeyAndVersion()
@@ -331,6 +600,21 @@ describe('EntityManager', () => {
       new TestEntityWithTableAndHashKeyAndVersion()
     );
     const example = new TestEntityWithTableAndHashKeyAndVersion();
+    example.id = persistedEntity.id;
+    const entity = await entityManager.get(example);
+    expect(entity).to.deep.equal(persistedEntity);
+    const scanObject = await scanTable(tableName);
+    expect(scanObject['Count']).to.be.equal(1);
+  });
+
+  it('should get an existing entity with typed object attribute', async () => {
+    const entityToSave = new TestEntityWithTypedObjectAttribute();
+    entityToSave.id = '1234';
+    entityToSave.property = new TestEntityWithStringAttribute();
+    entityToSave.property.id = '5678';
+    entityToSave.property.property = 'TEST_VALUE';
+    const persistedEntity = await entityManager.save(entityToSave);
+    const example = new TestEntityWithTypedObjectAttribute();
     example.id = persistedEntity.id;
     const entity = await entityManager.get(example);
     expect(entity).to.deep.equal(persistedEntity);
