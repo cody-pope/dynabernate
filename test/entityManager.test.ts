@@ -7,7 +7,6 @@ import DynamoDbLocal = require('dynamodb-local');
 import { CreateTableInput } from 'aws-sdk/clients/dynamodb';
 
 const tableName = 'TABLE_NAME';
-// const tableDefinition = new CreateTableInput
 const tableDefinition: CreateTableInput = {
   TableName: tableName,
   KeySchema: [
@@ -26,10 +25,11 @@ const tableDefinition: CreateTableInput = {
 };
 
 const port = 8000;
-// AWS.config.update({ region: 'us-east-1' });
 const db = new AWS.DynamoDB({
   endpoint: 'http://localhost:' + port,
   region: 'us-east-1',
+  accessKeyId: 'placeholder',
+  secretAccessKey: 'placeholder',
 });
 
 function createTable(tableDefinition: CreateTableInput): Promise<unknown> {
@@ -149,7 +149,9 @@ describe('EntityManager', () => {
   });
 
   beforeEach(() => {
-    entityManager = new EntityManager();
+    entityManager = new EntityManager(
+      new AWS.DynamoDB.DocumentClient({ service: db })
+    );
   });
 
   afterEach(() => {

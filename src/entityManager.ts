@@ -2,11 +2,6 @@ import Symbols from './symbols';
 import { v4 as uuid } from 'uuid';
 import AWS = require('aws-sdk');
 
-const documentClient = new AWS.DynamoDB.DocumentClient({
-  endpoint: 'http://localhost:8000',
-  region: 'us-east-1',
-});
-
 function getTable(target: any): string {
   let tables: string[] = Reflect.getMetadata(Symbols.table, target);
   if (!tables) {
@@ -59,6 +54,12 @@ function getVersionProperty(target: any): string {
 }
 
 export default class EntityManager {
+  documentClient: AWS.DynamoDB.DocumentClient;
+
+  constructor(documentClient: AWS.DynamoDB.DocumentClient) {
+    this.documentClient = documentClient;
+  }
+
   get<T>(example: T): Promise<T> {
     return new Promise((resolve, reject) => {
       const table = getTable(example);
@@ -69,7 +70,7 @@ export default class EntityManager {
         Key: {},
       };
       params.Key[hashKeyProperty] = example[hashKeyProperty];
-      documentClient.get(params, (err, data) => {
+      this.documentClient.get(params, (err, data) => {
         if (err) reject(err);
         else if (!data.Item) resolve();
         else {
@@ -112,7 +113,7 @@ export default class EntityManager {
         }
         params.Item[versionProperty] = (object[versionProperty] || 0) + 1;
       }
-      documentClient.put(params, (err) => {
+      this.documentClient.put(params, (err) => {
         if (err) reject(err);
         else {
           object[hashKeyProperty] = params.Item[hashKeyProperty];
