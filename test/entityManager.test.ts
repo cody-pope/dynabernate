@@ -2,9 +2,13 @@ import { expect, assert } from 'chai';
 import { hashKey, attribute, version, table } from '../src/index';
 import EntityManager from '../src/entityManager';
 import { rejects } from 'assert';
+import AWS = require('aws-sdk');
+import DynamoDbLocal = require('dynamodb-local');
+import { CreateTableInput } from 'aws-sdk/clients/dynamodb';
 
 const tableName = 'TABLE_NAME';
-const tableDefinition = {
+// const tableDefinition = new CreateTableInput
+const tableDefinition: CreateTableInput = {
   TableName: tableName,
   KeySchema: [
     {
@@ -21,14 +25,14 @@ const tableDefinition = {
   BillingMode: 'PAY_PER_REQUEST',
 };
 
-const DynamoDbLocal = require('dynamodb-local');
 const port = 8000;
-const AWS = require('aws-sdk');
+// AWS.config.update({ region: 'us-east-1' });
 const db = new AWS.DynamoDB({
   endpoint: 'http://localhost:' + port,
+  region: 'us-east-1',
 });
 
-function createTable(tableDefinition: object): Promise<unknown> {
+function createTable(tableDefinition: CreateTableInput): Promise<unknown> {
   return new Promise((resolve, reject) => {
     db.createTable(tableDefinition, (err, data) => {
       if (err) reject(err);
@@ -139,7 +143,7 @@ describe('EntityManager', () => {
   let entityManager: EntityManager;
 
   before(() => {
-    return DynamoDbLocal.launch(port, null, ['-sharedDb']).then(() => {
+    return DynamoDbLocal.launch(port).then(() => {
       return createTable(tableDefinition);
     });
   });
@@ -332,11 +336,35 @@ describe('EntityManager', () => {
     expect(scanObject['Count']).to.be.equal(1);
   });
 
+  it('should get an existing entity that does not have a version', async () => {
+    const persistedEntity = await entityManager.save(
+      new TestEntityWithTableAndHashKey()
+    );
+    const example = new TestEntityWithTableAndHashKey();
+    example.id = persistedEntity.id;
+    const entity = await entityManager.get(example);
+    expect(entity).to.deep.equal(persistedEntity);
+    const scanObject = await scanTable(tableName);
+    expect(scanObject['Count']).to.be.equal(1);
+  });
+
   it('should not get an entity that does not exist', async () => {
     const example = new TestEntityWithTableAndHashKeyAndVersion();
     example.id = '1234';
     const entity = await entityManager.get(example);
     expect(entity).to.be.undefined;
+    const scanObject = await scanTable(tableName);
+    expect(scanObject['Count']).to.be.equal(0);
+  });
+
+  it('should not get an entity without an id', async () => {
+    await rejects(
+      entityManager.get(new TestEntityWithTableAndHashKeyAndVersion()),
+      {
+        name: 'ValidationException',
+        message: 'The number of conditions on the keys is invalid',
+      }
+    );
     const scanObject = await scanTable(tableName);
     expect(scanObject['Count']).to.be.equal(0);
   });

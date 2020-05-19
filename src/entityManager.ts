@@ -1,10 +1,10 @@
 import Symbols from './symbols';
 import { v4 as uuid } from 'uuid';
+import AWS = require('aws-sdk');
 
-const AWS = require('aws-sdk');
-AWS.config.update({ region: 'us-east-1' });
 const documentClient = new AWS.DynamoDB.DocumentClient({
   endpoint: 'http://localhost:8000',
+  region: 'us-east-1',
 });
 
 function getTable(target: any): string {
@@ -61,26 +61,34 @@ function getVersionProperty(target: any): string {
 export default class EntityManager {
   get<T>(example: T): Promise<T> {
     return new Promise((resolve, reject) => {
-      let table: string = getTable(example);
-      let hashKeyProperty: string = getHashKeyProperty(example);
-      let params = {
+      const table = getTable(example);
+      const hashKeyProperty = getHashKeyProperty(example);
+      const versionProperty = getVersionProperty(example);
+      const params = {
         TableName: table,
         Key: {},
       };
       params.Key[hashKeyProperty] = example[hashKeyProperty];
       documentClient.get(params, (err, data) => {
         if (err) reject(err);
-        else resolve(data.Item);
+        else if (!data.Item) resolve();
+        else {
+          example[hashKeyProperty] = data.Item[hashKeyProperty];
+          if (versionProperty) {
+            example[versionProperty] = data.Item[versionProperty];
+          }
+          resolve(example);
+        }
       });
     });
   }
 
   save<T>(object: T): Promise<T> {
     return new Promise((resolve, reject) => {
-      let table: string = getTable(object);
-      let hashKeyProperty: string = getHashKeyProperty(object);
-      let versionProperty: string = getVersionProperty(object);
-      let params = {
+      const table = getTable(object);
+      const hashKeyProperty = getHashKeyProperty(object);
+      const versionProperty = getVersionProperty(object);
+      const params = {
         TableName: table,
         Item: {},
         Expected: {},
