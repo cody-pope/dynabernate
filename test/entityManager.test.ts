@@ -654,4 +654,46 @@ describe('EntityManager', () => {
     const scanObject = await scanTable(tableName);
     expect(scanObject['Count']).to.be.equal(0);
   });
+
+  it('should delete an existing entity', async () => {
+    const entity = await entityManager.save(
+      new TestEntityWithTableAndHashKeyAndVersion()
+    );
+    expect(entity.version).to.be.equal(1);
+    let scanObject = await scanTable(tableName);
+    expect(scanObject['Count']).to.be.equal(1);
+    expect(scanObject['ScannedCount']).to.be.equal(1);
+    await entityManager.delete(entity);
+    scanObject = await scanTable(tableName);
+    expect(scanObject['Count']).to.be.equal(0);
+    expect(scanObject['ScannedCount']).to.be.equal(0);
+  });
+
+  it('should delete an existing entity that has already been deleted', async () => {
+    const entity = await entityManager.save(
+      new TestEntityWithTableAndHashKeyAndVersion()
+    );
+    expect(entity.version).to.be.equal(1);
+    let scanObject = await scanTable(tableName);
+    expect(scanObject['Count']).to.be.equal(1);
+    expect(scanObject['ScannedCount']).to.be.equal(1);
+    await entityManager.delete(entity);
+    scanObject = await scanTable(tableName);
+    expect(scanObject['Count']).to.be.equal(0);
+    expect(scanObject['ScannedCount']).to.be.equal(0);
+    await entityManager.delete(entity);
+    scanObject = await scanTable(tableName);
+    expect(scanObject['Count']).to.be.equal(0);
+    expect(scanObject['ScannedCount']).to.be.equal(0);
+  });
+
+  it('should not delete an entity when id has not been provided', async () => {
+    await rejects(
+      entityManager.delete(new TestEntityWithTableAndHashKeyAndVersion()),
+      {
+        name: 'ValidationException',
+        message: 'The number of conditions on the keys is invalid',
+      }
+    );
+  });
 });

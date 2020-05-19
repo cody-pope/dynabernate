@@ -65,6 +65,22 @@ export default class EntityManager {
     this.documentClient = documentClient;
   }
 
+  delete<T>(example: T): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const table = getTable(example);
+      const hashKeyProperty = getHashKeyProperty(example);
+      const params = {
+        TableName: table,
+        Key: {},
+      };
+      params.Key[hashKeyProperty] = example[hashKeyProperty];
+      this.documentClient.delete(params, (err) => {
+        if (err) reject(err);
+        else resolve();
+      });
+    });
+  }
+
   get<T>(example: T): Promise<T> {
     return new Promise((resolve, reject) => {
       const table = getTable(example);
