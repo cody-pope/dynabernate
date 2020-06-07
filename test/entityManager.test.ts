@@ -216,78 +216,6 @@ describe('EntityManager', () => {
     DynamoDbLocal.stop(port);
   });
 
-  it('should not save when entity does not have a table decorator', async () => {
-    await rejects(entityManager.save(new TestEntityWithoutTable()), {
-      name: 'Error',
-      message:
-        'The entity TestEntityWithoutTable should have a @table(<TABLE_NAME>) decorator.',
-    });
-  });
-
-  it('should not save when entity has multiple table decorators', async () => {
-    await rejects(entityManager.save(new TestEntityWithMultipleTables()), {
-      name: 'Error',
-      message:
-        'The entity TestEntityWithMultipleTables should only have one @table(<TABLE_NAME>) decorator, but multiple were found.',
-    });
-  });
-
-  it('should not save when entity does not have a property with a hashKey decorator', async () => {
-    await rejects(entityManager.save(new TestEntityWithoutHashKey()), {
-      name: 'Error',
-      message:
-        'The entity TestEntityWithoutHashKey should have a property with a @hashKey() decorator.',
-    });
-  });
-
-  it('should not save when entity has multiple hashKey decorators on the same property', async () => {
-    await rejects(
-      entityManager.save(new TestEntityWithMultipleHashKeysOnSameProperty()),
-      {
-        name: 'Error',
-        message:
-          'The entity TestEntityWithMultipleHashKeysOnSameProperty should only have one property with a @hashKey() decorator, but multiple were found.',
-      }
-    );
-  });
-
-  it('should not save when entity has multiple hashKey decorators on the different properties', async () => {
-    await rejects(
-      entityManager.save(
-        new TestEntityWithMultipleHashKeysOnDifferentProperties()
-      ),
-      {
-        name: 'Error',
-        message:
-          'The entity TestEntityWithMultipleHashKeysOnDifferentProperties should only have one property with a @hashKey() decorator, but multiple were found.',
-      }
-    );
-  });
-
-  it('should not save when entity has multiple version decorators on the same property', async () => {
-    await rejects(
-      entityManager.save(new TestEntityWithMultipleVersionsOnSameProperty()),
-      {
-        name: 'Error',
-        message:
-          'The entity TestEntityWithMultipleVersionsOnSameProperty should only have one property with a @version() decorator, but multiple were found.',
-      }
-    );
-  });
-
-  it('should not save when entity has multiple version decorators on the different properties', async () => {
-    await rejects(
-      entityManager.save(
-        new TestEntityWithMultipleVersionsOnDifferentProperties()
-      ),
-      {
-        name: 'Error',
-        message:
-          'The entity TestEntityWithMultipleVersionsOnDifferentProperties should only have one property with a @version() decorator, but multiple were found.',
-      }
-    );
-  });
-
   it('should save a new entity with a generated hash key when the hashKey property is null or undefined', async () => {
     const entity = new TestEntityWithTableAndHashKey();
     const persistedEntity = await entityManager.save(entity);
@@ -302,10 +230,39 @@ describe('EntityManager', () => {
     );
   });
 
+  it('should save a transaction for a new entity with a generated hash key when the hashKey property is null or undefined', async () => {
+    entityManager.beginWriteTransaction();
+    const entity = new TestEntityWithTableAndHashKey();
+    const persistedEntity = await entityManager.save(entity);
+    expect(persistedEntity).to.be.equal(entity);
+    await entityManager.commitWriteTransaction();
+    const scanObject = await scanTable(tableName);
+    expect(scanObject['Count']).to.be.equal(1);
+    expect(scanObject['ScannedCount']).to.be.equal(1);
+    expect(scanObject['Items'].length).to.be.equal(1);
+    assert.match(
+      scanObject['Items'][0]['id']['S'],
+      /^[a-z0-9]{8}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{4}-[a-z0-9]{12}$/
+    );
+  });
+
   it('should save a new entity with version 1 when the version property is null or undefined', async () => {
     const entity = new TestEntityWithTableAndHashKeyAndVersion();
     const persistedEntity = await entityManager.save(entity);
     expect(persistedEntity).to.be.equal(entity);
+    const scanObject = await scanTable(tableName);
+    expect(scanObject['Count']).to.be.equal(1);
+    expect(scanObject['ScannedCount']).to.be.equal(1);
+    expect(scanObject['Items'].length).to.be.equal(1);
+    expect(scanObject['Items'][0]['version']['N']).to.be.equal('1');
+  });
+
+  it('should save a transaction for a new entity with version 1 when the version property is null or undefined', async () => {
+    entityManager.beginWriteTransaction();
+    const entity = new TestEntityWithTableAndHashKeyAndVersion();
+    const persistedEntity = await entityManager.save(entity);
+    expect(persistedEntity).to.be.equal(entity);
+    await entityManager.commitWriteTransaction();
     const scanObject = await scanTable(tableName);
     expect(scanObject['Count']).to.be.equal(1);
     expect(scanObject['ScannedCount']).to.be.equal(1);
@@ -669,6 +626,22 @@ describe('EntityManager', () => {
     expect(scanObject['ScannedCount']).to.be.equal(0);
   });
 
+  it('should delete an existing entity in a transaction', async () => {
+    const entity = await entityManager.save(
+      new TestEntityWithTableAndHashKeyAndVersion()
+    );
+    expect(entity.version).to.be.equal(1);
+    let scanObject = await scanTable(tableName);
+    expect(scanObject['Count']).to.be.equal(1);
+    expect(scanObject['ScannedCount']).to.be.equal(1);
+    entityManager.beginWriteTransaction();
+    await entityManager.delete(entity);
+    await entityManager.commitWriteTransaction();
+    scanObject = await scanTable(tableName);
+    expect(scanObject['Count']).to.be.equal(0);
+    expect(scanObject['ScannedCount']).to.be.equal(0);
+  });
+
   it('should delete an existing entity that has already been deleted', async () => {
     const entity = await entityManager.save(
       new TestEntityWithTableAndHashKeyAndVersion()
@@ -695,5 +668,34 @@ describe('EntityManager', () => {
         message: 'The number of conditions on the keys is invalid',
       }
     );
+  });
+
+  it('should commit a transaction with nothing in it', async () => {
+    entityManager.beginWriteTransaction();
+    await entityManager.commitWriteTransaction();
+  });
+
+  it('should not commit a transaction with bad version', async () => {
+    let entity1 = new TestEntityWithTableAndHashKeyAndVersion();
+    entity1.id = 'ENTITY_1';
+    entity1 = await entityManager.save(entity1);
+    entityManager.beginWriteTransaction();
+    let entity2 = new TestEntityWithTableAndHashKeyAndVersion();
+    entity2.id = 'ENTITY_1';
+    entity2 = await entityManager.save(entity2);
+    let entity3 = new TestEntityWithTableAndHashKeyAndVersion();
+    entity3.id = 'ENTITY_3';
+    entity3 = await entityManager.save(entity3);
+    await rejects(entityManager.commitWriteTransaction(), {
+      name: 'TransactionCanceledException',
+      message:
+        'Transaction cancelled, please refer cancellation reasons for specific reasons [ConditionalCheckFailed, None]',
+    });
+
+    const scanObject = await scanTable(tableName);
+    expect(scanObject['Count']).to.be.equal(1);
+    expect(scanObject['ScannedCount']).to.be.equal(1);
+    expect(scanObject['Items'].length).to.be.equal(1);
+    expect(scanObject['Items'][0]['version']['N']).to.be.equal('1');
   });
 });

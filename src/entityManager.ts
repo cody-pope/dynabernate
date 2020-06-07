@@ -1,109 +1,86 @@
-import Symbols from './symbols';
+import EntityMeta from './entityMeta';
 import { v4 as uuid } from 'uuid';
-import AWS = require('aws-sdk');
-
-function getTable(target: any): string {
-  let tables: string[] = Reflect.getMetadata(Symbols.table, target);
-  if (!tables) {
-    throw new Error(
-      'The entity ' +
-        target.constructor.name +
-        ' should have a @table(<TABLE_NAME>) decorator.'
-    );
-  } else if (tables.length !== 1) {
-    throw new Error(
-      'The entity ' +
-        target.constructor.name +
-        ' should only have one @table(<TABLE_NAME>) decorator, but multiple were found.'
-    );
-  }
-  return tables[0];
-}
-
-function getHashKeyProperty(target: any): string {
-  let hashKeys: string[] = Reflect.getMetadata(Symbols.hashKey, target);
-  if (!hashKeys) {
-    throw new Error(
-      'The entity ' +
-        target.constructor.name +
-        ' should have a property with a @hashKey() decorator.'
-    );
-  } else if (hashKeys.length !== 1) {
-    throw new Error(
-      'The entity ' +
-        target.constructor.name +
-        ' should only have one property with a @hashKey() decorator, but multiple were found.'
-    );
-  }
-  return hashKeys[0];
-}
-
-function getVersionProperty(target: any): string {
-  let versions: string[] = Reflect.getMetadata(Symbols.version, target);
-  if (versions) {
-    if (versions.length > 1) {
-      throw new Error(
-        'The entity ' +
-          target.constructor.name +
-          ' should only have one property with a @version() decorator, but multiple were found.'
-      );
-    }
-    return versions[0];
-  }
-  return null;
-}
-
-function getAttributeProperties(target: any): string[] {
-  let attributes: string[] = Reflect.getMetadata(Symbols.attribute, target);
-  return attributes;
-}
+import {
+  DocumentClient,
+  TransactWriteItemsInput,
+  Put,
+} from 'aws-sdk/clients/dynamodb';
 
 export default class EntityManager {
-  documentClient: AWS.DynamoDB.DocumentClient;
+  private documentClient: DocumentClient;
+  private writeTxn: TransactWriteItemsInput;
 
-  constructor(documentClient: AWS.DynamoDB.DocumentClient) {
+  constructor(documentClient: DocumentClient) {
     this.documentClient = documentClient;
+  }
+
+  beginWriteTransaction(): void {
+    this.writeTxn = {
+      TransactItems: [],
+    };
+  }
+
+  commitWriteTransaction(): Promise<void> {
+    return new Promise((resolve, reject) => {
+      if (!this.writeTxn || this.writeTxn.TransactItems.length === 0) {
+        this.writeTxn = undefined;
+        resolve();
+      } else {
+        this.documentClient.transactWrite(this.writeTxn, (err) => {
+          if (err) reject(err);
+          else {
+            this.writeTxn = undefined;
+            resolve();
+          }
+        });
+      }
+    });
   }
 
   delete<T>(example: T): Promise<T> {
     return new Promise((resolve, reject) => {
-      const table = getTable(example);
-      const hashKeyProperty = getHashKeyProperty(example);
+      const tableName = EntityMeta.getTableName(example);
+      const hashKeyName = EntityMeta.getHashKeyName(example);
       const params = {
-        TableName: table,
+        TableName: tableName,
         Key: {},
       };
-      params.Key[hashKeyProperty] = example[hashKeyProperty];
-      this.documentClient.delete(params, (err) => {
-        if (err) reject(err);
-        else resolve();
-      });
+      params.Key[hashKeyName] = example[hashKeyName];
+      if (this.writeTxn) {
+        this.writeTxn.TransactItems.push({
+          Delete: params,
+        });
+        resolve();
+      } else {
+        this.documentClient.delete(params, (err) => {
+          if (err) reject(err);
+          else resolve();
+        });
+      }
     });
   }
 
   get<T>(example: T): Promise<T> {
     return new Promise((resolve, reject) => {
-      const table = getTable(example);
-      const hashKeyProperty = getHashKeyProperty(example);
-      const versionProperty = getVersionProperty(example);
-      const attributeProperties = getAttributeProperties(example);
+      const tableName = EntityMeta.getTableName(example);
+      const hashKeyName = EntityMeta.getHashKeyName(example);
+      const versionName = EntityMeta.getVersionName(example);
+      const attributeNames = EntityMeta.getAttributeNames(example);
       const params = {
-        TableName: table,
+        TableName: tableName,
         Key: {},
       };
-      params.Key[hashKeyProperty] = example[hashKeyProperty];
+      params.Key[hashKeyName] = example[hashKeyName];
       this.documentClient.get(params, (err, data) => {
         if (err) reject(err);
         else if (!data.Item) resolve();
         else {
-          example[hashKeyProperty] = data.Item[hashKeyProperty];
-          if (versionProperty) {
-            example[versionProperty] = data.Item[versionProperty];
+          example[hashKeyName] = data.Item[hashKeyName];
+          if (versionName) {
+            example[versionName] = data.Item[versionName];
           }
-          if (attributeProperties) {
-            for (let attributeProperty of attributeProperties) {
-              example[attributeProperty] = data.Item[attributeProperty];
-            }
+          for (let attributeProperty of attributeNames) {
+            example[attributeProperty] = data.Item[attributeProperty];
           }
           resolve(example);
         }
@@ -111,51 +88,76 @@ export default class EntityManager {
     });
   }
 
-  save<T>(object: T): Promise<T> {
+  save<T>(entity: T): Promise<T> {
     return new Promise((resolve, reject) => {
-      const table = getTable(object);
-      const hashKeyProperty = getHashKeyProperty(object);
-      const versionProperty = getVersionProperty(object);
-      const attributeProperties = getAttributeProperties(object);
-      const params = {
-        TableName: table,
+      const params: Put = {
+        TableName: EntityMeta.getTableName(entity),
         Item: {},
-        Expected: {},
+        ExpressionAttributeValues: {},
       };
-      if (!object[hashKeyProperty]) {
-        params.Expected[hashKeyProperty] = {
-          Exists: false,
-        };
+
+      const conditions = [];
+
+      // Add hash key
+      const hashKeyName = EntityMeta.getHashKeyName(entity);
+      if (!entity[hashKeyName]) {
+        conditions.push('attribute_not_exists(' + hashKeyName + ')');
       }
-      params.Item[hashKeyProperty] = object[hashKeyProperty] || uuid();
-      if (versionProperty) {
-        if (object[versionProperty]) {
-          params.Expected[versionProperty] = {
-            ComparisonOperator: 'EQ',
-            Value: object[versionProperty],
-          };
+      params.Item[hashKeyName] = entity[hashKeyName] || uuid();
+
+      // Add version
+      const versionName = EntityMeta.getVersionName(entity);
+      if (versionName) {
+        if (entity[versionName]) {
+          conditions.push(versionName + ' = :version');
+          params.ExpressionAttributeValues[':version'] = entity[versionName];
         } else {
-          params.Expected[versionProperty] = {
-            Exists: false,
-          };
+          conditions.push('attribute_not_exists(' + versionName + ')');
         }
-        params.Item[versionProperty] = (object[versionProperty] || 0) + 1;
+        params.Item[versionName] = (entity[versionName] || 0) + 1;
       }
-      if (attributeProperties) {
-        for (let attributeProperty of attributeProperties) {
-          params.Item[attributeProperty] = object[attributeProperty];
+
+      // Add attributes
+      const attributeNames = EntityMeta.getAttributeNames(entity);
+      for (let attributeProperty of attributeNames) {
+        params.Item[attributeProperty] = entity[attributeProperty];
+      }
+
+      // Build conditional expression
+      for (let condition of conditions) {
+        if (params.ConditionExpression) {
+          params.ConditionExpression += ' and ' + condition;
+        } else {
+          params.ConditionExpression = condition;
         }
       }
-      this.documentClient.put(params, (err) => {
-        if (err) reject(err);
-        else {
-          object[hashKeyProperty] = params.Item[hashKeyProperty];
-          if (versionProperty) {
-            object[versionProperty] = params.Item[versionProperty];
+
+      // Remove expression attribute values if empty
+      if (Object.keys(params.ExpressionAttributeValues).length === 0) {
+        delete params.ExpressionAttributeValues;
+      }
+
+      if (this.writeTxn) {
+        this.writeTxn.TransactItems.push({
+          Put: params,
+        });
+        entity[hashKeyName] = params.Item[hashKeyName];
+        if (versionName) {
+          entity[versionName] = params.Item[versionName];
+        }
+        resolve(entity);
+      } else {
+        this.documentClient.put(params, (err) => {
+          if (err) reject(err);
+          else {
+            entity[hashKeyName] = params.Item[hashKeyName];
+            if (versionName) {
+              entity[versionName] = params.Item[versionName];
+            }
+            resolve(entity);
           }
-          resolve(object);
-        }
-      });
+        });
+      }
     });
   }
 }
