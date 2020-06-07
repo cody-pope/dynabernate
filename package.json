@@ -1,9 +1,11 @@
 {
   "name": "dynabernate",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "A DynamoDB data mapper that uses Hibernate-like decorators (annotations)",
-  "main": "index.ts",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
   "scripts": {
+    "prepublishOnly": "tsc",
     "test": "cross-env TS_NODE_FILES=true mocha --timeout 0 --exit --require ts-node/register --colors test/**/*.ts",
     "coverage": "nyc npm run test"
   },

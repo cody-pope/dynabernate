@@ -3,7 +3,8 @@
     "esModuleInterop": true,
     "emitDecoratorMetadata": true,
     "experimentalDecorators": true,
-    "sourceMap": true
-    // "types": ["reflect-metadata"]
+    "sourceMap": true,
+    "declaration": true,
+    "outDir": "dist"
   }
 }
