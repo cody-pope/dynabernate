@@ -23,7 +23,7 @@
     "@types/chai": "4.2.11",
     "@types/mocha": "7.0.2",
     "@types/node": "13.13.5",
-    "aws-sdk": "2.675.0",
+    "aws-sdk": "2.814.0",
     "chai": "4.2.0",
     "coveralls": "3.1.0",
     "cross-env": "5.2.0",
